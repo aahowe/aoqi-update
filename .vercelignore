@@ -1,0 +1,10 @@
+.cloudflare/
+.wrangler/
+.vercel/
+.env*
+.dev.vars*
+node_modules/
+public/
+update/history/
+update/v1/**/beta.json
+*.log

@@ -15,6 +15,8 @@ Cloudflare Worker：`aoqi-update-mirrors`，正式域名 `https://update-cf.howe
 
 `npm run deploy:cloudflare` 使用已登录的 Cloudflare CLI 构建并部署。`cloudflare.config.ts` 是部署配置；`wrangler.config.ts` 由 `cf init` 为静态资源构建生成，只供 `cf` 调用的构建工具读取。发布仓库的 `static-host` 上传器在 Git 节点完成后检查本次清单逐字节一致，再自动运行部署命令，因此下次正常发布会同步更新此节点。
 
-Vercel 使用 `vercel.json` 的静态构建、短缓存和真实 404 配置。完成账号登录并关联正式项目后，`npm run deploy:vercel` 部署正式节点；正式项目身份通过本地 `.vercel/project.json` 保存，不提交凭据。未验签的内容或不存在的渠道不会回退到首页。
+Vercel 正式节点：`https://aoqi-update-mirror.vercel.app/update/v1/`，项目为 `howe3/aoqi-update-mirror`。使用 `vercel.json` 的静态构建、短缓存和真实 404 配置。`npm run deploy:vercel` 明确指定团队和项目部署正式节点；本地 `.vercel/project.json` 保存链接，不提交凭据。未验签的内容或不存在的渠道不会回退到首页。用户已确认此公开镜像属于个人非商业用途并使用当前 Hobby 套餐；未开通付费套餐。
+
+Vercel GitHub 自动连接尚未授权（CLI 返回需要 GitHub Login Connection），因此发布自动化采用发布仓库的 `static-host` 上传器，通过已登录的官方 CLI 更新，不依赖 GitHub 连接。需要在另一台机器发布时，先 `npm ci` 并完成两个 CLI 的账号登录；不要复制或提交认证令牌。
 
 使用全局 CLI：`cf auth login`、`vercel login`；交互授权由账户持有人完成。CLI 的认证文件、`.cloudflare/`、`.vercel/` 和生成的 `public/` 均不入库。服务器只接收公开清单，不接收离线签名私钥。

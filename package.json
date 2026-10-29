@@ -6,7 +6,7 @@
     "build": "node tools/prepare-site.mjs",
     "deploy": "npm run build && cf deploy",
     "deploy:cloudflare": "npm run build && cf deploy",
-    "deploy:vercel": "vercel deploy --prod --yes"
+    "deploy:vercel": "vercel deploy --prod --yes --scope howe3 --project aoqi-update-mirror"
   },
   "engines": {
     "node": ">=22.18.0"
