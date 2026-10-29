@@ -1,0 +1,54 @@
+name: sync-from-oss
+
+# Manifests are signed and published to OSS from the server's admin panel; copy newer ones here
+# so jsDelivr, GitHub Pages, raw and Vercel follow. No signing key is involved.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-from-oss
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Copy newer manifests from OSS
+        id: sync
+        run: |
+          set -o pipefail
+          node tools/sync-from-oss.mjs | tee changes.txt
+          if [ -s changes.txt ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Commit and push
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          git config user.name 'aoqi-update-sync'
+          git config user.email 'aoqi-update-sync@users.noreply.github.com'
+          git add update
+          git commit -q -m "sync from OSS: $(paste -sd ';' changes.txt)"
+          git pull --rebase -q
+          git push -q
+      - name: Refresh jsDelivr
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          for platform in android macos windows ios; do
+            for channel in stable beta; do
+              curl -fsS -o /dev/null "https://purge.jsdelivr.net/gh/aahowe/aoqi-update@master/update/v1/aoqi/$platform/$channel.json" || true
+            done
+          done
+      - name: Deploy Cloudflare Worker (only when the token secret exists)
+        if: steps.sync.outputs.changed == 'true' && env.CLOUDFLARE_API_TOKEN != ''
+        run: npm ci && npm run deploy:cloudflare

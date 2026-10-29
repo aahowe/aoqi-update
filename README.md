@@ -5,7 +5,7 @@ Air 奥奇传说的版本更新清单镜像（jsDelivr / Cloudflare Pages 节点
 - `update/v1/<产品>/<平台>/<渠道>.json`：客户端读取的清单信封，由离线私钥签名（ES256），客户端验签后才会使用。
 - `update/history/`：每次发布的存档。
 
-内容由主仓库的 `tools/release-update.py` 自动发布，请勿手工修改。
+内容请勿手工修改。清单由后端管理面板（air-aoqi-server 的“发布更新”）签名并上传到 OSS，`.github/workflows/sync-from-oss.yml` 每 5 分钟运行 `tools/sync-from-oss.mjs`：从 OSS 读取各平台 stable/beta 清单，用 `config/manifest-keys.json` 验签，serial 前进才写入并提交，随后刷新 jsDelivr；推送后 Vercel 自动部署。仓库配置了 `CLOUDFLARE_API_TOKEN`（及 `CLOUDFLARE_ACCOUNT_ID`）机密时同时部署 Cloudflare Worker，否则跳过。需要立即同步时在 Actions 页手动运行该工作流。发布仓库的 `tools/release-update.py` 保留为后备，仍直接提交到本仓库。
 
 ## 静态更新节点
 
