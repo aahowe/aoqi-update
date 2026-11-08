@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createPublicKey, verify } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { indexPath, objectPath, openIndex, objects, checkObject, platforms as patchPlatforms } from './patches.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const keys = JSON.parse(fs.readFileSync(path.join(root, 'config/manifest-keys.json'), 'utf8'));
@@ -65,6 +66,47 @@ for (const platform of platforms) {
     }
     changed.push(`${relative} serial ${remote.serial} (${remote.latest.version})`);
   }
+}
+// SWF patch sets: objects first, the index last, so a mirror never names an object it does not have.
+const ossRoot = base.replace(/update\/v1\/$/, '');
+for (const platform of patchPlatforms) {
+  const relative = indexPath(platform);
+  try {
+    const response = await fetch(`${ossRoot}${relative}?sync=${Date.now()}`, { headers: { 'Cache-Control': 'no-cache' }, redirect: 'error' });
+    if (response.status === 404 || response.status === 403) continue; // not published
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    const remote = openIndex(bytes, platform);
+    const file = path.join(root, relative);
+    const local = fs.existsSync(file) ? openIndex(fs.readFileSync(file), platform) : null;
+    if (local && remote.serial <= local.serial) continue;
+    for (const object of objects(remote)) {
+      const target = path.join(root, objectPath(object.sha));
+      if (fs.existsSync(target)) { checkObject(fs.readFileSync(target), object); continue; }
+      const reply = await fetch(`${ossRoot}${objectPath(object.sha)}`, { redirect: 'error' });
+      if (!reply.ok) throw new Error(`object ${object.sha}: HTTP ${reply.status}`);
+      const body = Buffer.from(await reply.arrayBuffer());
+      checkObject(body, object);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, body);
+    }
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, bytes);
+    changed.push(`${relative} serial ${remote.serial}`);
+  } catch (error) {
+    console.error(`${relative}: ${error.message}`);
+    failed = true;
+  }
+}
+// Objects no current index names are dropped from the tree (Git history keeps them).
+const named = new Set();
+for (const platform of patchPlatforms) {
+  const file = path.join(root, indexPath(platform));
+  if (fs.existsSync(file)) for (const { sha } of objects(openIndex(fs.readFileSync(file), platform))) named.add(sha);
+}
+const objectDir = path.join(root, 'patches/objects');
+if (fs.existsSync(objectDir)) for (const name of fs.readdirSync(objectDir)) {
+  if (!named.has(name.replace(/\.swf$/, ''))) { fs.rmSync(path.join(objectDir, name)); changed.push(`removed ${name}`); }
 }
 for (const line of changed) console.log(line);
 if (failed) process.exitCode = 1;
